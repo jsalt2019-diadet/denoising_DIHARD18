@@ -1,9 +1,9 @@
-# A quick-use package for speech enhancement based on our DIHARD18 system
-Original founder: @staplesinLA
+# A quick-use package for speech enhancement
+Major contributor: @nryant (many thanks)
 
-Major contributor: @nryant (many thanks!)
-			
-The repository provides tools to reproduce the enhancement results of the
+(For JSALT-2019, we will gradually update the newly designed models. Currently, the NN network is trained by CNTK. We plan to support pytorch, however, the performance evaluation is not finished yet.)
+
+At the start, the repository provides tools to reproduce the enhancement results of the
 speech preprocessing part of our DIHARD18 system[1]. The deep-learning based
 denoising model is trained on 400 hours of English and Mandarin audio; for full
 details see [1,2,3]. Currently the tools accept 16 kHz, 16-bit monochannel
@@ -12,7 +12,7 @@ WAV files. Please convert the audio format in advance.
 Additionally, this package integrates a voice activity detection (VAD) module
 based on [py-webrtcvad](https://github.com/wiseman/py-webrtcvad), which provides a Python interface to the
 [WebRTC](https://webrtc.org/) VAD. The default parameters are tuned on the
-development set of DIHARD18.
+development set of DIHARD18. It can be used as a baseline for the VAD project.
 
 [1] Sun, Lei, et al. "Speaker Diarization with Enhancing Speech for the
 First DIHARD Challenge." Proc. Interspeech 2018 (2018):
