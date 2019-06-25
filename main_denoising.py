@@ -106,7 +106,7 @@ class Process(multiprocessing.Process):
 
 
 def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
-                gpu_id, truncate_minutes):
+                gpu_id, truncate_minutes, mode):
     """Apply speech enhancement to audio in WAV file.
 
     Parameters
@@ -140,6 +140,13 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
     # librosa.load, we use the former.
     rate, wav_data = wav_io.read(src_wav_file)
 
+    if mode == 1:
+        print("###Selecting the estimated ideal-ratio-masks in mode 1 (more conservative).###")
+    elif mode == 2:
+        print("###Selecting the estimated log-power-spec features in mode 2 (more agressive).###")
+    elif mode == 3:
+        print("###Selecting both estimated IRM and LPS outputs with equal weights in mode 3 (trade-off).###")
+
     # Apply peak-normalization.
     wav_data = utils.peak_normalization(wav_data)
 
@@ -168,7 +175,7 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
                 tmp_dir, 'noisy_normed_lps.htk')
             noisy_normed_lps_scp_fn = os.path.join(
                 tmp_dir, 'noisy_normed_lps.scp')
-            irm_fn = os.path.join(
+            outputs_fn = os.path.join(
                 tmp_dir, 'irm.mat')
 
             # Extract LPS features from waveform.
@@ -190,20 +197,34 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
             # be output to the temp directory as irm.mat. In order to avoid a
             # memory leak, must do this in a separate process which we then
             # kill.
-            decode_model(noisy_normed_lps_scp_fn, tmp_dir, NFREQS, use_gpu,
-                         gpu_id)
+            p = Process(
+                target=decode_model,
+                args=(noisy_normed_lps_scp_fn, tmp_dir, NFREQS, use_gpu, gpu_id))
+            p.start()
+            p.join()
+            if p.exception:
+                e, tb = p.exception
+                raise type(e)(tb)
 
             # Read in IRM and directly mask the original LPS features.
-            irm = sio.loadmat(irm_fn)['IRM']
-            masked_lps = noisy_htkdata + np.log(irm)
+            irm = sio.loadmat(outputs_fn)['IRM']
+            lps = sio.loadmat(outputs_fn)['LPS']
 
+            if mode == 1:
+                recovered_lps = noisy_htkdata + np.log(irm)
+            elif mode == 2:
+                recovered_lps = (lps * global_var) +  global_mean 
+            elif mode == 3:
+                recovered_lps = 0.5*( noisy_htkdata + np.log(irm)) + 0.5*((lps * global_var) +  global_mean)          
+ 
             # Reconstruct audio.
             wave_recon = utils.logspec2wav(
-                masked_lps, temp, window=np.hamming(WL), n_per_seg=WL,
+                recovered_lps, temp, window=np.hamming(WL), n_per_seg=WL,
                 noverlap=WL2)
             data_se.append(wave_recon)
         finally:
             shutil.rmtree(tmp_dir)
+    data_se = [x.astype(np.int16, copy=False) for x in data_se]
     data_se = np.concatenate(data_se)
     wav_io.write(dest_wav_file, SR, data_se)
 
@@ -258,15 +279,7 @@ def main_denoising(wav_files, output_dir, verbose=False, **kwargs):
         try:
             bn = os.path.basename(src_wav_file)
             dest_wav_file = os.path.join(output_dir, bn)
-            p = Process(
-                target=denoise_wav,
-                args=(src_wav_file, dest_wav_file, global_mean, global_var),
-                kwargs=kwargs)
-            p.start()
-            p.join()
-            if p.exception:
-                e, tb = p.exception
-                raise type(e)(tb)
+            denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, **kwargs)
             print('Finished processing file "%s".' % src_wav_file)
         except Exception as e:
             msg = 'Problem encountered while processing file "%s". Skipping.' % src_wav_file
@@ -303,6 +316,10 @@ def main():
         metavar='FLOAT',
         help='maximum chunk size in minutes (default: %(default)s)')
     parser.add_argument(
+        '--mode', nargs=None, default=3, type=float,
+        metavar='INT',
+        help='which output to use: (1:irm , 2:lps, 3:fusion) (default: %(default)s)')
+    parser.add_argument(
         '--verbose', default=False, action='store_true',
         help='print full stacktrace for files with errors')
     if len(sys.argv) == 1:
@@ -329,8 +346,9 @@ def main():
     # Perform denoising.
     main_denoising(
         wav_files, args.output_dir, args.verbose, use_gpu=use_gpu, gpu_id=args.gpu_id,
-        truncate_minutes=args.truncate_minutes)
+        truncate_minutes=args.truncate_minutes, mode=args.mode)
 
+#def main_denoising(wav_files, output_dir, verbose=False, **kwargs):
 
 if __name__ == '__main__':
     main()
