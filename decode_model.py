@@ -35,7 +35,7 @@ PY2 = sys.version_info[0] == 2
 
 
 def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
-                 gpu_id=0):
+                 gpu_id=0, mode=3):
     """Applies model to LPS features to generate ideal ratio mask.
 
     Parameters
@@ -58,6 +58,10 @@ def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
     gpu_id : int, optional
          Id of GPU on which to do computation.
          (Default: 0)
+         
+    mode : int, optional 
+         Choose which estimated output node: 1:irm, 2:lps, or 3:fusion of both.
+         (Default: 3)
     """
     if not os.path.exists(irm_mat_dir):
         os.makedirs(irm_mat_dir)
@@ -93,13 +97,17 @@ def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
             noisy_fea = test_reader.next_minibatch(
                 mb_size, input_map=eval_input_map)
             real_noisy_fea = noisy_fea[input].data
-            node_name = b'irm' if PY2 else 'irm'
-            node_in_graph = model_dnn.find_by_name(node_name)
-            output_nodes = combine([node_in_graph.owner])
-            with wurlitzer.pipes() as (stdout, stderr):
-                irm = output_nodes.eval(real_noisy_fea)
-            irm = np.concatenate((irm), axis=0)
+            
+            node_names = [b'irm' if PY2 else 'irm', b'lps' if PY2 else 'lps']
+            outputs_dict = {}
+            for node_name in  node_names:
+                node_in_graph = model_dnn.find_by_name(node_name)
+                output_nodes = combine([node_in_graph.owner])
+                with wurlitzer.pipes() as (stdout, stderr):
+                    value = output_nodes.eval(real_noisy_fea)
+                value = np.concatenate((value), axis=0)
+                outputs_dict[node_name] = value
 
-            # Write .mat file.
-            sio.savemat(
-                os.path.join(irm_mat_dir, chunk_id + '.mat'), {'IRM' : irm})
+            sio.savemat(os.path.join(irm_mat_dir, chunk_id + '.mat'), {'IRM' : outputs_dict['irm'], 'LPS':outputs_dict['lps']})
+
+
