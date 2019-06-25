@@ -1,8 +1,7 @@
 # A quick-use package for speech enhancement
-Major contributor: @nryant (many thanks)
 
 For jsalt2019-diadet:
-(0)    I've already installed CNTK in CLSP, to make it work please set the environment variables beforing running:
+(0)    I've already installed CNTK on CLSP, to make it work please set the environment variables beforing running:
 	
 	export PATH=/home/leisun1/local/mpi/bin/:$PATH
 	export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/leisun1/local/mpi/lib/:$LD_LIBRARY_PATH
@@ -23,12 +22,12 @@ For jsalt2019-diadet:
       If decoding fails with a ``CUDA Error: out of memory`` error, reduce the
       value of ``TRUNCATE_MINUTES``.
    
-(3)   Execute ``run_eval.sh``:
+(3)   Execute ``run_eval.sh`` (please make necessary adjustments on CLSP, it's omitted here ) :
 
         ./run_eval.sh    
       
 ###############################Original info############################### 
-
+Major contributor: @nryant (many thanks)
 At the start, the repository provides tools to reproduce the enhancement results of the
 speech preprocessing part of our DIHARD18 system[1]. The deep-learning based
 denoising model is trained on 400 hours of English and Mandarin audio; for full
