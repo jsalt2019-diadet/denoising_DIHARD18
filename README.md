@@ -27,7 +27,7 @@ For jsalt2019-diadet:
 
         ./run_eval.sh    
       
-############################################################## 
+###############################Original info############################### 
 
 At the start, the repository provides tools to reproduce the enhancement results of the
 speech preprocessing part of our DIHARD18 system[1]. The deep-learning based
