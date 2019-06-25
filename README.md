@@ -1,7 +1,33 @@
 # A quick-use package for speech enhancement
 Major contributor: @nryant (many thanks)
 
-(For JSALT-2019, we will gradually update the newly designed models. Currently, the NN network is trained by CNTK. We plan to support pytorch, however, the performance evaluation is not finished yet.)
+For jsalt2019-diadet:
+(0)    I've already installed CNTK in CLSP, to make it work please set the environment variables beforing running:
+	
+	export PATH=/home/leisun1/local/mpi/bin/:$PATH
+	export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/leisun1/local/mpi/lib/:$LD_LIBRARY_PATH
+	source /home/leisun1/anaconda3/bin/activate cntk-py35
+
+(2)   Specify parameters in ``run_eval.sh``:
+	
+    * For the speech enhancement tool:
+
+            WAV_DIR=<path to original wavs>
+            SE_WAV_DIR=<path to output dir>
+            USE_GPU=<true|false, if false use CPU, default=true>
+            GPU_DEVICE_ID=<GPU device id on your machine, default=0>
+            TRUNCATE_MINUTES=<audio chunk length in minutes, default=10>
+	    mode=<1/2/3, which indicates the output from estimated IRM, LPS and fusion of both respectively.>
+
+      We recommend using a GPU for decoding as it's much faster than CPU.
+      If decoding fails with a ``CUDA Error: out of memory`` error, reduce the
+      value of ``TRUNCATE_MINUTES``.
+   
+(3)   Execute ``run_eval.sh``:
+
+        ./run_eval.sh    
+      
+############################################################## 
 
 At the start, the repository provides tools to reproduce the enhancement results of the
 speech preprocessing part of our DIHARD18 system[1]. The deep-learning based
