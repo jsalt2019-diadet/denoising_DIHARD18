@@ -1,6 +1,7 @@
 # A quick-use package for speech enhancement
 
 For jsalt2019-diadet:
+
 (0)    I've already installed CNTK on CLSP, to make it work please set the environment variables beforing running:
 	
 	export PATH=/home/leisun1/local/mpi/bin/:$PATH
@@ -27,7 +28,9 @@ For jsalt2019-diadet:
         ./run_eval.sh    
       
 ###############################Original info############################### 
+
 Major contributor: @nryant (many thanks)
+
 At the start, the repository provides tools to reproduce the enhancement results of the
 speech preprocessing part of our DIHARD18 system[1]. The deep-learning based
 denoising model is trained on 400 hours of English and Mandarin audio; for full
