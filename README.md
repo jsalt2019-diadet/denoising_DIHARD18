@@ -11,18 +11,18 @@ For jsalt2019-diadet:
 	
     * For the speech enhancement tool:
 
-            WAV_DIR=<path to original wavs>
-            SE_WAV_DIR=<path to output dir>
-            USE_GPU=<true|false, if false use CPU, default=true>
-            GPU_DEVICE_ID=<GPU device id on your machine, default=0>
-            TRUNCATE_MINUTES=<audio chunk length in minutes, default=10>
-	    mode=<1/2/3, which indicates the output from estimated IRM, LPS and fusion of both respectively.>
+     WAV_DIR=<path to original wavs>
+     SE_WAV_DIR=<path to output dir>
+     USE_GPU=<true|false, if false use CPU, default=true>
+     GPU_DEVICE_ID=<GPU device id on your machine, default=0>
+     TRUNCATE_MINUTES=<audio chunk length in minutes, default=10>
+     mode=<1/2/3, which indicates the output from estimated IRM, LPS and fusion of both respectively.>
 
       We recommend using a GPU for decoding as it's much faster than CPU.
       If decoding fails with a ``CUDA Error: out of memory`` error, reduce the
       value of ``TRUNCATE_MINUTES``.
    
-(3)   Execute ``run_eval.sh`` (please make necessary adjustments on CLSP, it's omitted here ) :
+(3)   Execute ``run_eval.sh`` (please make necessary adjustments on CLSP, they're omitted here ) :
 
         ./run_eval.sh    
       
