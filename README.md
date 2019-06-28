@@ -2,11 +2,11 @@
 
 For jsalt2019-diadet:
 
-(0)    I've already installed CNTK on CLSP, to make it work please set the environment variables beforing running:
+(0)    I've already installed CNTK on CLSP, necessary environment variables are listed:
 	
 	export PATH=/home/leisun1/local/mpi/bin/:$PATH
 	export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/leisun1/local/mpi/lib/:$LD_LIBRARY_PATH
-	source /home/leisun1/anaconda3/bin/activate cntk-py35
+	PYTHON:  /home/leisun1/anaconda3/envs/cntk-py35/bin/python 
 
 (2)   Specify parameters in ``run_eval.sh``:
 	
@@ -15,15 +15,18 @@ For jsalt2019-diadet:
      WAV_DIR=<path to original wavs>
      SE_WAV_DIR=<path to output dir>
      USE_GPU=<true|false, if false use CPU, default=true>
-     GPU_DEVICE_ID=<GPU device id on your machine, default=0>
+     GPU_DEVICE_ID=<GPU device id on your machine, default=0, use `free-gpu` instead on the grid>
      TRUNCATE_MINUTES=<audio chunk length in minutes, default=10>
-     mode=<1/2/3, which indicates the output from estimated IRM, LPS and fusion of both respectively.>
+     MODE=<Use which output of the model: mode=1 is irm, mode=2 is lps, mode=3 is fusion of both, default=3>
+     MODEL_SELECT=<Use which pre-trained model, currently including: a 400-h model and a 1000h-model, default=1000h>
+     STAGE_SELECT=<Only works if choosing 1000h-model, select use which layer's outputs, default=3>
+
 
       We recommend using a GPU for decoding as it's much faster than CPU.
       If decoding fails with a ``CUDA Error: out of memory`` error, reduce the
       value of ``TRUNCATE_MINUTES``.
    
-(3)   Execute ``run_eval.sh`` (please make necessary adjustments on CLSP, they're omitted here ) :
+(3)   Execute ``run_eval.sh`` (please make necessary adjustments in your environments ) :
 
         ./run_eval.sh    
       
