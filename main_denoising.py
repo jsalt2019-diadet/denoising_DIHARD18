@@ -106,7 +106,7 @@ class Process(multiprocessing.Process):
 
 
 def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
-                gpu_id, truncate_minutes, mode):
+                gpu_id, truncate_minutes, mode, model_select, stage_select):
     """Apply speech enhancement to audio in WAV file.
 
     Parameters
@@ -146,7 +146,9 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
         print("###Selecting the estimated log-power-spec features in mode 2 (more agressive).###")
     elif mode == 3:
         print("###Selecting both estimated IRM and LPS outputs with equal weights in mode 3 (trade-off).###")
-
+        
+    print("Using the pre-trained {} speech enhancement model.".format(model_select))   
+        
     # Apply peak-normalization.
     wav_data = utils.peak_normalization(wav_data)
 
@@ -183,12 +185,18 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
 
             # Do MVN before decoding.
             normed_noisy = (noisy_htkdata - global_mean) / global_var
-
+               
             # Write features to HTK binary format making sure to also
             # create a script file.
-            utils.write_htk(
-                noisy_normed_lps_fn, normed_noisy, samp_period=SR,
-                parm_kind=9)
+            #utils.write_htk(
+            #     noisy_normed_lps_fn, normed_noisy, samp_period=SR,
+            #    parm_kind=9)
+            
+            if model_select.lower() =='400h':
+                utils.write_htk( noisy_normed_lps_fn, normed_noisy, samp_period=SR, parm_kind=9)
+            elif model_select.lower() =='1000h': 
+                utils.write_htk( noisy_normed_lps_fn, noisy_htkdata, samp_period=SR, parm_kind=9) ### The 1000h model already integrates MVN inside itself.
+
             cntk_len = noisy_htkdata.shape[0] - 1
             with open(noisy_normed_lps_scp_fn, 'w') as f:
                 f.write('irm=%s[0,%d]\n' % (noisy_normed_lps_fn, cntk_len))
@@ -197,9 +205,12 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
             # be output to the temp directory as irm.mat. In order to avoid a
             # memory leak, must do this in a separate process which we then
             # kill.
+            #def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
+             #                gpu_id=0, mode=1, model_select='400h', stage_select=3):
+            
             p = Process(
                 target=decode_model,
-                args=(noisy_normed_lps_scp_fn, tmp_dir, NFREQS, use_gpu, gpu_id))
+                args=(noisy_normed_lps_scp_fn, tmp_dir, NFREQS, use_gpu, gpu_id , mode, model_select, stage_select))
             p.start()
             p.join()
             if p.exception:
@@ -229,7 +240,7 @@ def denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu,
     wav_io.write(dest_wav_file, SR, data_se)
 
 
-def main_denoising(wav_files, output_dir, verbose=False, **kwargs):
+def main_denoising(wav_files, output_dir, verbose, use_gpu, gpu_id, truncate_minutes, mode, model_select='1000h',stage_select=3):
     """Perform speech enhancement for WAV files in ``wav_dir``.
 
     Parameters
@@ -250,7 +261,8 @@ def main_denoising(wav_files, output_dir, verbose=False, **kwargs):
         os.makedirs(output_dir)
 
     # Load global MVN statistics.
-    global_mean_var = sio.loadmat(GLOBAL_MEAN_VAR_MATF)
+    global_mean_var_matf = os.path.join(HERE, 'model', 'global_{}_mvn_stats.mat'.format(model_select) )
+    global_mean_var = sio.loadmat(global_mean_var_matf)
     global_mean = global_mean_var['global_mean']
     global_var = global_mean_var['global_var']
 
@@ -279,7 +291,7 @@ def main_denoising(wav_files, output_dir, verbose=False, **kwargs):
         try:
             bn = os.path.basename(src_wav_file)
             dest_wav_file = os.path.join(output_dir, bn)
-            denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, **kwargs)
+            denoise_wav(src_wav_file, dest_wav_file, global_mean, global_var, use_gpu, gpu_id, truncate_minutes, mode, model_select, stage_select )
             print('Finished processing file "%s".' % src_wav_file)
         except Exception as e:
             msg = 'Problem encountered while processing file "%s". Skipping.' % src_wav_file
@@ -320,6 +332,14 @@ def main():
         metavar='INT',
         help='which output to use: (1:irm , 2:lps, 3:fusion) (default: %(default)s)')
     parser.add_argument(
+        '--model_select', nargs=None, default='1000h', type=str,
+        metavar='STR',
+        help='which pre-trained model to use:  "400h" or "1000h" (default: %(default)s)')      
+    parser.add_argument(
+        '--stage_select', nargs=None, default=3, type=int,
+        metavar='INT',
+        help='which stage(1 or 2 or 3) of PL based model, only works for "1000h model" (default: %(default)s)') 
+    parser.add_argument(
         '--verbose', default=False, action='store_true',
         help='print full stacktrace for files with errors')
     if len(sys.argv) == 1:
@@ -346,7 +366,7 @@ def main():
     # Perform denoising.
     main_denoising(
         wav_files, args.output_dir, args.verbose, use_gpu=use_gpu, gpu_id=args.gpu_id,
-        truncate_minutes=args.truncate_minutes, mode=args.mode)
+        truncate_minutes=args.truncate_minutes, mode=args.mode, model_select=args.model_select, stage_select=args.stage_select )
 
 #def main_denoising(wav_files, output_dir, verbose=False, **kwargs):
 
