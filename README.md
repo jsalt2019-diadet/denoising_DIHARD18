@@ -9,6 +9,11 @@ For jsalt2019-diadet:
 	PYTHON:  /home/leisun1/anaconda3/envs/cntk-py35/bin/python 
 	
 (1)    Download the repo and copy the models on the grid:
+	
+	cp https://github.com/jsalt2019-diadet/speech_denoising_tools.git
+	cd ./model
+	cp /export/fs01/jsalt19/leisun/speech_enhancement/denoising_DIHARD18/model/*.model ./
+	
 
 (2)   Specify parameters in ``run_eval.sh``:
 	
