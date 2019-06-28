@@ -11,7 +11,7 @@ import os
 import re
 import sys
 import warnings
-
+import utils
 warnings.filterwarnings(
     'ignore', message=r'[\s\S]+Missing optional dependency')
 warnings.filterwarnings(
@@ -27,15 +27,15 @@ from cntk.device import try_set_default_device, gpu, cpu
 import numpy as np
 import scipy.io as sio
 import wurlitzer
-
+import pdb
 
 HERE = os.path.abspath(os.path.dirname(__file__))
-MODELF = os.path.join(HERE, "model", "speech_enhancement.model")
+#MODELF = os.path.join(HERE, "model", "speech_enhancement.model")
 PY2 = sys.version_info[0] == 2
 
 
 def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
-                 gpu_id=0, mode=3):
+                 gpu_id=0, mode=1, model_select='400h', stage_select=3):
     """Applies model to LPS features to generate ideal ratio mask.
 
     Parameters
@@ -58,18 +58,22 @@ def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
     gpu_id : int, optional
          Id of GPU on which to do computation.
          (Default: 0)
-         
-    mode : int, optional 
-         Choose which estimated output node: 1:irm, 2:lps, or 3:fusion of both.
-         (Default: 3)
     """
     if not os.path.exists(irm_mat_dir):
         os.makedirs(irm_mat_dir)
+    
+    model_select=str(model_select)
 
     # Load model.
     with wurlitzer.pipes() as (stdout, stderr):
         try_set_default_device(gpu(gpu_id) if use_gpu else cpu())
-        model_dnn = load_model(MODELF)
+        
+        if model_select.lower() =='400h':
+            MODELF = os.path.join(HERE, "model", "speech_enhancement_400h.model")
+            model_dnn = load_model(MODELF)
+        elif model_select.lower() =='1000h':
+            MODELF = os.path.join(HERE, "model", "speech_enhancement_1000h.model")
+            model_dnn = load_model(MODELF)
 
     # Compute ideal ratio masks for all chunks of LPS features specified in
     # the script file and save as .mat files in irm_mat_dir.
@@ -98,7 +102,14 @@ def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
                 mb_size, input_map=eval_input_map)
             real_noisy_fea = noisy_fea[input].data
             
-            node_names = [b'irm' if PY2 else 'irm', b'lps' if PY2 else 'lps']
+            
+            if model_select.lower() =='400h':
+                node_names = [b'irm' if PY2 else 'irm', b'lps' if PY2 else 'lps']
+            elif model_select.lower() =='1000h':
+                node_names = [b'irm_s'+str(stage_select) if PY2 else 'irm_s'+str(stage_select), b'lps_s'+str(stage_select) if PY2 else 'lps_s'+str(stage_select)]
+            else:
+                utils.error('Invalid parameter of model_select!!!!!')
+                
             outputs_dict = {}
             for node_name in  node_names:
                 node_in_graph = model_dnn.find_by_name(node_name)
@@ -107,7 +118,9 @@ def decode_model(features_file, irm_mat_dir, feature_dim, use_gpu=True,
                     value = output_nodes.eval(real_noisy_fea)
                 value = np.concatenate((value), axis=0)
                 outputs_dict[node_name] = value
-
-            sio.savemat(os.path.join(irm_mat_dir, chunk_id + '.mat'), {'IRM' : outputs_dict['irm'], 'LPS':outputs_dict['lps']})
-
+            
+            if model_select.lower() =='400h':
+                sio.savemat(os.path.join(irm_mat_dir, chunk_id + '.mat'), {'IRM' : outputs_dict['irm'], 'LPS':outputs_dict['lps']})
+            elif model_select.lower() =='1000h':
+                sio.savemat(os.path.join(irm_mat_dir, chunk_id + '.mat'), {'IRM' : outputs_dict['irm_s'+str(stage_select)], 'LPS':outputs_dict['lps_s'+str(stage_select)]})
 
