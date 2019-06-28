@@ -7,6 +7,8 @@ For jsalt2019-diadet:
 	export PATH=/home/leisun1/local/mpi/bin/:$PATH
 	export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/leisun1/local/mpi/lib/:$LD_LIBRARY_PATH
 	PYTHON:  /home/leisun1/anaconda3/envs/cntk-py35/bin/python 
+	
+(1)    Download the repo and copy the models on the grid:
 
 (2)   Specify parameters in ``run_eval.sh``:
 	
