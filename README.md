@@ -27,6 +27,8 @@ For jsalt2019-diadet:
 
         ./run_eval.sh    
       
+
+![img](https://github.com/jsalt2019-diadet/speech_denoising_tools/blob/master/PL_fig.png)
 ###############################Original info############################### 
 
 Major contributor: @nryant (many thanks)
