@@ -2,7 +2,7 @@
 
 For jsalt2019-diadet:
 
-(0)    I've already installed CNTK on CLSP, necessary environment variables are listed:
+(0)    I've already installed CNTK on CLSP, necessary environment variables are listed (already set in ``run_eval.sh``):
 	
 	export PATH=/home/leisun1/local/mpi/bin/:$PATH
 	export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/leisun1/local/mpi/lib/:$LD_LIBRARY_PATH
