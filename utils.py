@@ -1,6 +1,7 @@
 """Various utility functions."""
 from __future__ import print_function
 from __future__ import unicode_literals
+import numbers
 import os
 import sndhdr
 import struct
@@ -9,6 +10,7 @@ import sys
 import librosa.core
 import librosa.util
 import numpy as np
+import scipy.signal
 import webrtcvad
 
 EPS = 1e-8
@@ -26,7 +28,6 @@ def error(msg):
     print(msg, file=sys.stderr)
 
 
-# TODO: Find out why this duplicates functionality of librosa.core.stft.
 def stft(x, window, n_per_seg=512, noverlap=256):
     """Return short-time Fourier transform (STFT) for signal.
 
@@ -45,28 +46,13 @@ def stft(x, window, n_per_seg=512, noverlap=256):
     x = np.array(x)
     nadd = noverlap - (len(x) - n_per_seg) % noverlap
     x = np.concatenate((x, np.zeros(nadd)))
-    step = n_per_seg - noverlap
-    shape = x.shape[:-1] + ((x.shape[-1] - noverlap) // step, n_per_seg)
-    strides = x.strides[:-1] + (step * x.strides[-1], x.strides[-1])
+    hop_size = n_per_seg - noverlap
+    shape = x.shape[:-1] + ((x.shape[-1] - noverlap) // hop_size, n_per_seg)
+    strides = x.strides[:-1] + (hop_size * x.strides[-1], x.strides[-1])
     x = np.lib.stride_tricks.as_strided(x, shape=shape, strides=strides)
     x = x * window
     result = np.fft.rfft(x, n=n_per_seg)
     return result
-
-
-# TODO: Find out why this duplicates functionality of librosa.core.istft.
-def istft(x, window, n_per_seg=512, noverlap=256):
-    """TODO"""
-    x = np.fft.irfft(x)
-    y = np.zeros((len(x) - 1) * noverlap + n_per_seg)
-    C1 = window[0:256]
-    C2 = window[0:256] + window[256:512]
-    C3 = window[256:512]
-    y[0:noverlap] = x[0][0:noverlap] / C1
-    for i in range(1, len(x)):
-        y[i * noverlap:(i + 1) * noverlap] = (x[i - 1][noverlap:n_per_seg] + x[i][0:noverlap]) / C2
-    y[-noverlap:] = x[len(x) - 1][noverlap:] / C3
-    return y
 
 
 def wav2logspec(x, window, n_per_seg=512, noverlap=256):
@@ -75,21 +61,28 @@ def wav2logspec(x, window, n_per_seg=512, noverlap=256):
     return np.log(np.square(abs(y)) + EPS)
 
 
-def logspec2wav(lps, wave, window, n_per_seg=512, noverlap=256):
+
+def logspec2wav(lps, ref_wav, window, n_per_seg=512, noverlap=256):
     "Convert log-power spectrum back to time domain."""
-    z = stft(wave, window)
-    angle = z / (np.abs(z) + EPS) # Recover phase information
-    x = np.sqrt(np.exp(lps)) * angle
-    x = np.fft.irfft(x)
-    y = np.zeros((len(x) - 1) * noverlap + n_per_seg)
-    C1 = window[0:256]
-    C2 = window[0:256] + window[256:512]
-    C3 = window[256:512]
-    y[0:noverlap] = x[0][0:noverlap] / C1
-    for i in range(1, len(x)):
-        y[i*noverlap:(i + 1)*noverlap] = (x[i-1][noverlap:n_per_seg] + x[i][0:noverlap]) / C2
-    y[-noverlap:] = x[len(x)-1][noverlap:] / C3
-    return np.int16(y[0:len(wave)])
+    hop_size = n_per_seg - noverlap
+    assert len(window) % hop_size == 0, "The constraint of “Constant OverLap Add” (COLA) is not satisfied!"
+    ref_stft = stft (ref_wav, window, n_per_seg=n_per_seg, noverlap=noverlap) 
+    angle=ref_stft/ (np.abs(ref_stft) + EPS ) # Recover phase information
+    mag_x=np.sqrt(np.exp(lps))* angle
+    frames=np.fft.irfft (mag_x)   
+    back_wav=np.zeros((len(frames) -1) * noverlap + n_per_seg)
+    C1= window[0: hop_size]
+    C2= window[hop_size:]  + window[:noverlap]
+    C3= window[noverlap]
+    back_wav[0:hop_size] = frames[0][0:hop_size] / C1 #
+
+    for i in range (1, len(frames)):
+        back_wav[i*hop_size : i*hop_size+noverlap] = (frames[i-1][hop_size:] + frames[i][:noverlap])/C2
+        back_wav[i*hop_size+noverlap : i*hop_size+ n_per_seg] = frames[i][noverlap:] /C3 
+    back_wav[-hop_size:] =frames[len(frames) -1][noverlap:] /C3  
+    return np.int16(back_wav[0: len(ref_wav)])  
+
+
 
 
 MAX_PCM_VAL = 32767
@@ -127,7 +120,7 @@ def write_htk(filename, feature, samp_period, parm_kind):
 VALID_VAD_SRS = {8000, 16000, 32000, 48000}
 VALID_VAD_FRAME_LENGTHS = {10, 20, 30}
 VALID_VAD_MODES = {0, 1, 2, 3}
-def vad(data, fs, fs_vad=16000, frame_length=30, vad_mode=0):
+def vad(data, fs, fs_vad=16000, frame_length=30, vad_mode=0, med_filt_width=1):
     """Perform voice activity detection using WebRTC.
 
     VAD is performed by splitting the input into non-overlapping frames
@@ -155,6 +148,12 @@ def vad(data, fs, fs_vad=16000, frame_length=30, vad_mode=0):
         VAD aggressiveness. As ``vad_mode`` increases, it becomes more aggressive
         about filtering out nonspeech.
         (Default: 0)
+
+    med_filt_width : int, optional
+        Window size for median filter used to smooth frame level VAD labels. *MUST*
+        be an odd number. Large values lead to more aggressive smoothing. When
+        <=1, label smoothing is disabled.
+        (Default: 1)
 
     Returns
     -------
@@ -188,6 +187,11 @@ def vad(data, fs, fs_vad=16000, frame_length=30, vad_mode=0):
     data = data.squeeze()
     if not data.ndim == 1:
         raise ValueError('data must be mono (1 ch).')
+    if not isinstance(med_filt_width, numbers.Integral):
+        raise TypeError('med_filt_width must be an odd integer')
+    if med_filt_width % 2 == 0:
+        raise ValueError('med_filt_width must be an odd integer')
+
 
     # Resample.
     if fs != fs_vad:
@@ -197,7 +201,7 @@ def vad(data, fs, fs_vad=16000, frame_length=30, vad_mode=0):
         resampled = data
     resampled = resampled.astype('int16')
 
-    # Convert from millisecons to samples.
+    # Convert from milliseconds to samples.
     def ms_to_samples(t, sr):
         return t*sr // 1000
     frame_length_resamp = ms_to_samples(frame_length, fs_vad)
@@ -216,6 +220,11 @@ def vad(data, fs, fs_vad=16000, frame_length=30, vad_mode=0):
     vad = webrtcvad.Vad()
     vad.set_mode(vad_mode)
     valist = [vad.is_speech(frame.tobytes(), fs_vad) for frame in framed]
+
+    # Smooth labels.
+    if med_filt_width > 1:
+        valist = scipy.signal.medfilt(valist, med_filt_width)
+        valist = valist.astype(np.bool)
 
     # Convert to sample-level labels.
     va_framed = np.zeros((n_frames, frame_length), dtype='uint8')
